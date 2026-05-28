@@ -19,7 +19,7 @@
 - Windows 10/11 64位
 - Microsoft Visual C++ Redistributable
 
-## 从源码运行
+## 从源码运行（可选）
 
 ```bash
 # 安装依赖
