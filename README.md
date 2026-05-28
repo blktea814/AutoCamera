@@ -31,10 +31,3 @@ python main.py
 # 打包为 exe
 python build.py
 ```
-
-
-
-## 作者
-
-by BLKTEA  
-小黑盒ID：68344144
