@@ -1,0 +1,13 @@
+{
+    "video_save_dir": "C:\\Users\\26437\\CameraMonitor\\recordings",
+    "detection_confidence": 0.5,
+    "proximity_threshold": 0.06,
+    "stop_delay_seconds": 5,
+    "frame_skip": 3,
+    "camera_index": 0,
+    "resolution": [
+        640,
+        480
+    ],
+    "fps": 20
+}
