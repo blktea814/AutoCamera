@@ -57,12 +57,22 @@ class PlayerPanel(QWidget):
 
     def load_video(self, file_path: str):
         self._stop()
+        if not file_path or not os.path.isfile(file_path):
+            self._video_label.setText("视频文件不存在")
+            return
         self._cap = cv2.VideoCapture(file_path)
         if not self._cap.isOpened():
+            self._cap.release()
+            self._cap = None
             self._video_label.setText("无法打开视频文件")
             return
         self._total_frames = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self._fps = self._cap.get(cv2.CAP_PROP_FPS) or 20
+        self._fps = max(1.0, self._cap.get(cv2.CAP_PROP_FPS) or 20)
+        if self._total_frames <= 0:
+            self._cap.release()
+            self._cap = None
+            self._video_label.setText("视频没有可播放的画面")
+            return
         self._slider.setRange(0, self._total_frames - 1)
         self._slider.setValue(0)
         self._slider.setEnabled(True)
@@ -82,7 +92,7 @@ class PlayerPanel(QWidget):
             return
         self._playing = True
         self._btn_play.setText("暂停")
-        interval = int(1000 / self._fps)
+        interval = max(1, int(1000 / self._fps))
         self._timer.start(interval)
 
     def _pause(self):
@@ -97,10 +107,12 @@ class PlayerPanel(QWidget):
         if self._cap:
             self._cap.release()
             self._cap = None
+        self._total_frames = 0
         self._slider.setValue(0)
         self._slider.setEnabled(False)
         self._btn_play.setEnabled(False)
         self._btn_stop.setEnabled(False)
+        self._time_label.setText("00:00 / 00:00")
 
     def _next_frame(self):
         if self._cap is None:
@@ -111,6 +123,7 @@ class PlayerPanel(QWidget):
             return
         self._display_frame(frame)
         pos = int(self._cap.get(cv2.CAP_PROP_POS_FRAMES))
+        pos = min(max(0, pos), max(0, self._total_frames - 1))
         self._slider.setValue(pos)
         self._update_time_label(pos)
 
@@ -149,5 +162,9 @@ class PlayerPanel(QWidget):
         pos = self._slider.value()
         self._show_frame_at(pos)
         if self._playing:
-            interval = int(1000 / self._fps)
+            interval = max(1, int(1000 / self._fps))
             self._timer.start(interval)
+
+    def closeEvent(self, event):
+        self._stop()
+        super().closeEvent(event)

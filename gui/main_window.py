@@ -91,6 +91,7 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         self._monitor.signals.frame_ready.connect(self._status_panel.update_frame)
         self._monitor.signals.status_changed.connect(self._status_panel.update_status)
+        self._monitor.signals.status_changed.connect(self._on_monitor_status_changed)
         self._monitor.signals.detection_info.connect(self._status_panel.update_detection_info)
         self._monitor.signals.recording_started.connect(self._on_recording_started)
         self._monitor.signals.recording_stopped.connect(self._on_recording_stopped)
@@ -154,6 +155,13 @@ class MainWindow(QMainWindow):
         self._btn_start.setText(text)
         self._tray_monitor_action.setText(text)
 
+    @pyqtSlot(str)
+    def _on_monitor_status_changed(self, status: str):
+        if status in ("idle", "error"):
+            self._set_monitor_controls(False)
+        elif status in ("monitoring", "recording"):
+            self._set_monitor_controls(True)
+
     def _on_threshold_changed(self, value):
         threshold = value / 100.0
         self._threshold_label.setText(f"{threshold:.2f}")
@@ -166,7 +174,7 @@ class MainWindow(QMainWindow):
         if dir_path:
             self._config["video_save_dir"] = dir_path
             save_config(self._config)
-            self._monitor._recorder.set_save_dir(dir_path)
+            self._monitor.set_save_dir(dir_path)
             QMessageBox.information(self, "设置成功", f"录像将保存到:\n{dir_path}")
 
     @pyqtSlot(str)
@@ -217,7 +225,7 @@ class MainWindow(QMainWindow):
             "by BLKTEA\n小黑盒ID：68344144")
 
     def _quit_app(self):
-        self._monitor.stop()
+        self._monitor.close()
         self._db.close()
         self._tray.hide()
         from PyQt6.QtWidgets import QApplication

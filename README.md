@@ -12,11 +12,14 @@
 
 ## 快速使用
 
-从 [Releases](../../releases) 页面下载 `AutoCamera.exe`。
+从 [Releases](../../releases) 页面下载对应平台版本：
+
+- Windows 10/11 64 位：`AutoCamera.exe`
+- macOS Apple Silicon（arm64）：`AutoCamera-macOS-arm64.zip`
 
 ### 系统要求
 
-- Windows 10/11 64位或 macOS
+- Windows 10/11 64位或 macOS Apple Silicon（arm64）
 - Windows 运行打包程序需要 Microsoft Visual C++ Redistributable
 
 macOS 首次运行时，需要在“系统设置 -> 隐私与安全性 -> 摄像头”中允许 AutoCamera 访问摄像头。
@@ -35,7 +38,7 @@ python -m pip install pillow pyinstaller
 # 运行
 python main.py
 
-# 打包为 exe
+# 打包
 python build.py
 ```
 

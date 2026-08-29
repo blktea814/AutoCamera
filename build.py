@@ -40,11 +40,15 @@ def patch_macos_plist(project_dir):
 
 def resign_macos_app(project_dir):
     app_path = os.path.join(project_dir, "dist", "AutoCamera.app")
-    result = subprocess.run(
-        ["codesign", "--force", "--deep", "--sign", "-", app_path,
-         "--timestamp=none"],
-        capture_output=True, text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["codesign", "--force", "--deep", "--sign", "-", app_path,
+             "--timestamp=none"],
+            capture_output=True, text=True,
+        )
+    except OSError as exc:
+        print(f"警告：找不到 codesign，无法签名 macOS 应用：{exc}")
+        return
     if result.returncode == 0:
         print(f"已完成 macOS ad-hoc 签名: {app_path}")
     else:
@@ -64,6 +68,7 @@ def build():
     ]
 
     project_dir = os.path.dirname(os.path.abspath(__file__))
+    config_file = os.path.join(project_dir, "config.json")
     custom_ico = os.path.join(project_dir, "dist", "favicon.ico")
     custom_icns = os.path.join(project_dir, "dist", "favicon.icns")
     if sys.platform == "darwin":
@@ -84,14 +89,9 @@ def build():
         package_mode,
         "--windowed",
         "--noconfirm",
-        "--add-data", f"config.json{os.pathsep}.",
+        "--add-data", f"{config_file}{os.pathsep}.",
         "--hidden-import", "mediapipe",
         "--hidden-import", "mediapipe.python._framework_bindings",
-        "--hidden-import", "mediapipe.python._framework_bindings.calculator_graph",
-        "--hidden-import", "mediapipe.python._framework_bindings.image_frame",
-        "--hidden-import", "mediapipe.python._framework_bindings.packet",
-        "--hidden-import", "mediapipe.python._framework_bindings.resource_util",
-        "--hidden-import", "mediapipe.python._framework_bindings.validated_graph_config",
         "--hidden-import", "mediapipe.python.solutions.face_detection",
         "--hidden-import", "mediapipe.python.solution_base",
         "--hidden-import", "mediapipe.modules.face_detection.face_detection_pb2",
@@ -115,12 +115,12 @@ def build():
     for ex in excludes:
         cmd.extend(["--exclude-module", ex])
 
-    cmd.append("main.py")
+    cmd.append(os.path.join(project_dir, "main.py"))
     
     output_name = "AutoCamera.app" if sys.platform == "darwin" else "AutoCamera.exe"
     print(f"正在打包 {output_name} ...")
     print(f"排除模块: {', '.join(excludes)}")
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, cwd=project_dir)
 
     if sys.platform == "darwin":
         patch_macos_plist(project_dir)
@@ -136,7 +136,8 @@ def build():
 
 
 if __name__ == "__main__":
-    if not os.path.exists("config.json"):
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(os.path.join(project_dir, "config.json")):
         from utils.config import load_config
         load_config()
     build()

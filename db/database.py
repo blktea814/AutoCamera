@@ -1,6 +1,5 @@
 import sqlite3
 import os
-import sys
 from datetime import datetime
 from utils.paths import database_path
 
@@ -91,6 +90,8 @@ class Database:
         return file_path
 
     def delete_events_by_ids(self, event_ids: list) -> list:
+        if not event_ids:
+            return []
         removed = []
         for eid in event_ids:
             cursor = self._conn.execute("SELECT file_path FROM events WHERE id=?", (eid,))
