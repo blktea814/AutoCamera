@@ -1,5 +1,6 @@
 import cv2
 import threading
+import sys
 
 
 class Camera:
@@ -12,8 +13,16 @@ class Camera:
 
     def open(self) -> bool:
         with self._lock:
-            self._cap = cv2.VideoCapture(self._index, cv2.CAP_DSHOW)
+            if sys.platform == "win32":
+                backend = cv2.CAP_DSHOW
+            elif sys.platform == "darwin":
+                backend = getattr(cv2, "CAP_AVFOUNDATION", cv2.CAP_ANY)
+            else:
+                backend = cv2.CAP_ANY
+            self._cap = cv2.VideoCapture(self._index, backend)
             if not self._cap.isOpened():
+                self._cap.release()
+                self._cap = None
                 return False
             self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._resolution[0])
             self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._resolution[1])

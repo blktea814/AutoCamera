@@ -1,6 +1,4 @@
 import sys
-import os
-import subprocess
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget, QWidget, QVBoxLayout,
     QSystemTrayIcon, QMenu, QSlider, QLabel, QHBoxLayout,
@@ -15,6 +13,9 @@ from gui.player_panel import PlayerPanel
 from core.monitor import Monitor
 from db.database import Database
 from utils.config import load_config, save_config
+from utils.autostart import disable as disable_autostart
+from utils.autostart import enable as enable_autostart
+from utils.autostart import is_enabled as is_autostart_enabled
 
 
 class MainWindow(QMainWindow):
@@ -57,8 +58,14 @@ class MainWindow(QMainWindow):
         btn_dir.clicked.connect(self._set_save_dir)
         ctrl_layout.addWidget(btn_dir)
 
-        self._autostart_cb = QCheckBox("开机自启+锁屏运行")
-        self._autostart_cb.setChecked(self._is_autostart_enabled())
+        autostart_label = (
+            "开机自启+锁屏运行" if sys.platform == "win32"
+            else "登录自启（锁屏继续运行）" if sys.platform == "darwin"
+            else "开机自启（当前系统不可用）"
+        )
+        self._autostart_cb = QCheckBox(autostart_label)
+        self._autostart_cb.setEnabled(sys.platform in ("win32", "darwin"))
+        self._autostart_cb.setChecked(is_autostart_enabled())
         self._autostart_cb.stateChanged.connect(self._on_autostart_changed)
         ctrl_layout.addWidget(self._autostart_cb)
 
@@ -131,19 +138,21 @@ class MainWindow(QMainWindow):
         self._tray.show()
 
     def auto_start_monitor(self):
-        self._monitor.start()
-        self._btn_start.setText("停止监控")
-        self._tray_monitor_action.setText("停止监控")
+        if self._monitor.start():
+            self._set_monitor_controls(True)
 
     def _toggle_monitor(self):
         if self._monitor.is_running():
             self._monitor.stop()
-            self._btn_start.setText("开始监控")
-            self._tray_monitor_action.setText("开始监控")
+            self._set_monitor_controls(False)
         else:
-            self._monitor.start()
-            self._btn_start.setText("停止监控")
-            self._tray_monitor_action.setText("停止监控")
+            if self._monitor.start():
+                self._set_monitor_controls(True)
+
+    def _set_monitor_controls(self, running: bool):
+        text = "停止监控" if running else "开始监控"
+        self._btn_start.setText(text)
+        self._tray_monitor_action.setText(text)
 
     def _on_threshold_changed(self, value):
         threshold = value / 100.0
@@ -186,56 +195,22 @@ class MainWindow(QMainWindow):
         self.hide()
         self._tray.showMessage("摄像头监控", "程序已最小化到托盘，继续后台运行", QSystemTrayIcon.MessageIcon.Information)
 
-    def _get_exe_path(self) -> str:
-        if getattr(sys, 'frozen', False):
-            return sys.executable
-        return os.path.abspath(os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), 'dist', 'AutoCamera.exe'
-        ))
-
-    def _is_autostart_enabled(self) -> bool:
-        try:
-            result = subprocess.run(
-                ['schtasks', '/query', '/tn', 'AutoCamera'],
-                capture_output=True, text=True, creationflags=0x08000000
-            )
-            return result.returncode == 0
-        except Exception:
-            return False
-
     def _on_autostart_changed(self, state):
         if state == 2:  # checked
-            exe_path = self._get_exe_path()
-            if not os.path.exists(exe_path) and not getattr(sys, 'frozen', False):
-                QMessageBox.warning(self, "提示",
-                    "未找到 AutoCamera.exe\n请先运行 build.py 打包后再启用此功能")
+            success, message = enable_autostart()
+            if success:
+                QMessageBox.information(self, "成功", message)
+            else:
+                QMessageBox.warning(self, "失败", message)
+                self._autostart_cb.blockSignals(True)
                 self._autostart_cb.setChecked(False)
-                return
-            try:
-                result = subprocess.run(
-                    ['schtasks', '/create', '/tn', 'AutoCamera',
-                     '/tr', f'\"{exe_path}\" --background',
-                     '/sc', 'onlogon', '/rl', 'highest', '/f'],
-                    capture_output=True, text=True, creationflags=0x08000000
-                )
-                if result.returncode == 0:
-                    QMessageBox.information(self, "成功", "已启用开机自启和锁屏运行")
-                else:
-                    QMessageBox.warning(self, "失败",
-                        f"需要管理员权限，请以管理员身份运行程序\n{result.stderr}")
-                    self._autostart_cb.setChecked(False)
-            except Exception as e:
-                QMessageBox.warning(self, "错误", str(e))
-                self._autostart_cb.setChecked(False)
+                self._autostart_cb.blockSignals(False)
         else:  # unchecked
-            try:
-                subprocess.run(
-                    ['schtasks', '/delete', '/tn', 'AutoCamera', '/f'],
-                    capture_output=True, text=True, creationflags=0x08000000
-                )
-                QMessageBox.information(self, "成功", "已关闭开机自启")
-            except Exception:
-                pass
+            success, message = disable_autostart()
+            if success:
+                QMessageBox.information(self, "成功", message)
+            elif sys.platform in ("win32", "darwin"):
+                QMessageBox.warning(self, "失败", message)
 
     def _show_about(self):
         QMessageBox.about(self, "关于 AutoCamera",

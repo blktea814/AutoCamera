@@ -2,21 +2,21 @@ import sqlite3
 import os
 import sys
 from datetime import datetime
+from utils.paths import database_path
 
 
 class Database:
     def __init__(self, db_path: str = None):
         if db_path is None:
-            if getattr(sys, 'frozen', False):
-                base_dir = os.path.dirname(sys.executable)
-            else:
-                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            db_path = os.path.join(base_dir, "events.db")
+            db_path = database_path()
         self._db_path = db_path
         self._conn = None
         self._init_db()
 
     def _init_db(self):
+        parent = os.path.dirname(os.path.abspath(self._db_path))
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS events (

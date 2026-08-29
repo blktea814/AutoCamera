@@ -1,4 +1,5 @@
 import cv2
+import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QSlider
 )
@@ -67,7 +68,7 @@ class PlayerPanel(QWidget):
         self._slider.setEnabled(True)
         self._btn_play.setEnabled(True)
         self._btn_stop.setEnabled(True)
-        self._title_label.setText(f"回放: {file_path.split(chr(92))[-1]}")
+        self._title_label.setText(f"回放: {os.path.basename(file_path)}")
         self._show_frame_at(0)
 
     def _toggle_play(self):

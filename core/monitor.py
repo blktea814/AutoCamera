@@ -40,14 +40,15 @@ class Monitor:
 
     def start(self):
         if self._running:
-            return
+            return True
         if not self._camera.open():
             self.signals.status_changed.emit("error")
-            return
+            return False
         self._running = True
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
         self.signals.status_changed.emit("monitoring")
+        return True
 
     def stop(self):
         self._running = False

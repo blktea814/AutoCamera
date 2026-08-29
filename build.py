@@ -1,13 +1,11 @@
-"""
-打包脚本 - 将项目编译为单个 exe 文件
-使用方法: python build.py
-"""
+"""Build a platform-native AutoCamera application with PyInstaller."""
 import subprocess
 import sys
 import os
+import plistlib
 
 
-def generate_icon():
+def generate_windows_icon():
     from PIL import Image, ImageDraw
     sizes = [16, 32, 48, 64, 128, 256]
     images = []
@@ -25,6 +23,34 @@ def generate_icon():
     return ico_path
 
 
+def patch_macos_plist(project_dir):
+    plist_path = os.path.join(project_dir, "dist", "AutoCamera.app", "Contents", "Info.plist")
+    if not os.path.exists(plist_path):
+        return
+    with open(plist_path, "rb") as f:
+        plist = plistlib.load(f)
+    plist.update({
+        "NSCameraUsageDescription": "AutoCamera 需要访问摄像头，以检测有人靠近并自动录像。",
+        "CFBundleDisplayName": "AutoCamera",
+    })
+    with open(plist_path, "wb") as f:
+        plistlib.dump(plist, f, sort_keys=False)
+    print(f"已写入 macOS 摄像头权限声明: {plist_path}")
+
+
+def resign_macos_app(project_dir):
+    app_path = os.path.join(project_dir, "dist", "AutoCamera.app")
+    result = subprocess.run(
+        ["codesign", "--force", "--deep", "--sign", "-", app_path,
+         "--timestamp=none"],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 0:
+        print(f"已完成 macOS ad-hoc 签名: {app_path}")
+    else:
+        print(f"警告：macOS 签名失败，请手动签名后分发：{result.stderr.strip()}")
+
+
 def build():
     excludes = [
         "tensorflow", "tensorflow_intel", "tensorboard", "keras",
@@ -37,45 +63,63 @@ def build():
         "transformers", "huggingface_hub",
     ]
 
-    custom_ico = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist', 'favicon.ico')
-    if os.path.exists(custom_ico):
-        ico_path = custom_ico
-        print(f"使用自定义图标: {ico_path}")
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    custom_ico = os.path.join(project_dir, "dist", "favicon.ico")
+    custom_icns = os.path.join(project_dir, "dist", "favicon.icns")
+    if sys.platform == "darwin":
+        icon_path = custom_icns if os.path.exists(custom_icns) else None
+        if icon_path:
+            print(f"使用自定义图标: {icon_path}")
     else:
-        ico_path = generate_icon()
+        icon_path = custom_ico if os.path.exists(custom_ico) else generate_windows_icon()
 
     import cv2
-    cv2_dir = os.path.dirname(cv2.__file__)
-    ffmpeg_dlls = [f for f in os.listdir(cv2_dir) if 'ffmpeg' in f.lower()]
-
+    package_mode = "--onedir" if sys.platform == "darwin" else "--onefile"
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--name", "AutoCamera",
-        "--onefile",
+        package_mode,
         "--windowed",
-        "--icon", ico_path,
-        "--add-data", "config.json;.",
+        "--noconfirm",
+        "--add-data", f"config.json{os.pathsep}.",
         "--hidden-import", "mediapipe",
         "--hidden-import", "mediapipe.python._framework_bindings",
         "--collect-submodules", "mediapipe",
         "--collect-data", "mediapipe",
     ]
 
-    for dll in ffmpeg_dlls:
-        cmd.extend(["--add-binary", f"{os.path.join(cv2_dir, dll)};."])
+    if icon_path:
+        cmd.extend(["--icon", icon_path])
+    if sys.platform == "darwin":
+        cmd.extend(["--osx-bundle-identifier", "com.blktea814.autocamera"])
+
+    if sys.platform == "win32":
+        cv2_dir = os.path.dirname(cv2.__file__)
+        for dll in os.listdir(cv2_dir):
+            if "ffmpeg" in dll.lower():
+                cmd.extend(["--add-binary", f"{os.path.join(cv2_dir, dll)}{os.pathsep}."])
 
     for ex in excludes:
         cmd.extend(["--exclude-module", ex])
 
     cmd.append("main.py")
     
-    print("正在打包 AutoCamera.exe ...")
+    output_name = "AutoCamera.app" if sys.platform == "darwin" else "AutoCamera.exe"
+    print(f"正在打包 {output_name} ...")
     print(f"排除模块: {', '.join(excludes)}")
     subprocess.run(cmd, check=True)
+
+    if sys.platform == "darwin":
+        patch_macos_plist(project_dir)
+        resign_macos_app(project_dir)
     
     print("\n打包完成！")
-    print("  输出: dist/AutoCamera.exe")
-    print("\n运行 install_service.bat (以管理员身份) 可注册开机自启+锁屏运行")
+    if sys.platform == "darwin":
+        print("  输出: dist/AutoCamera.app")
+        print("  首次运行请在系统设置 -> 隐私与安全性 -> 摄像头中允许 AutoCamera")
+    else:
+        print("  输出: dist/AutoCamera.exe")
+        print("  可在程序中启用开机自启+锁屏运行")
 
 
 if __name__ == "__main__":

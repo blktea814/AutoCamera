@@ -1,8 +1,10 @@
 import json
 import os
+import ntpath
+from utils.paths import config_path, default_video_dir
 
 DEFAULT_CONFIG = {
-    "video_save_dir": os.path.join(os.path.expanduser("~"), "CameraMonitor", "recordings"),
+    "video_save_dir": default_video_dir(),
     "detection_confidence": 0.5,
     "proximity_threshold": 0.06,
     "stop_delay_seconds": 5,
@@ -12,14 +14,16 @@ DEFAULT_CONFIG = {
     "fps": 20,
 }
 
-import sys
+CONFIG_PATH = config_path()
 
-if getattr(sys, 'frozen', False):
-    _base_dir = os.path.dirname(sys.executable)
-else:
-    _base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-CONFIG_PATH = os.path.join(_base_dir, "config.json")
+def _resolve_video_dir(path: str) -> str:
+    path = os.path.expanduser(os.path.expandvars(path or ""))
+    # The repository ships with a Windows example path. Do not create a
+    # directory containing backslashes when that config is first used on macOS.
+    if os.name != "nt" and (ntpath.splitdrive(path)[0] or "\\" in path):
+        return DEFAULT_CONFIG["video_save_dir"]
+    return path or DEFAULT_CONFIG["video_save_dir"]
 
 
 def load_config() -> dict:
@@ -30,10 +34,12 @@ def load_config() -> dict:
     else:
         cfg = DEFAULT_CONFIG.copy()
         save_config(cfg)
+    cfg["video_save_dir"] = _resolve_video_dir(cfg["video_save_dir"])
     os.makedirs(cfg["video_save_dir"], exist_ok=True)
     return cfg
 
 
 def save_config(cfg: dict):
+    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=4, ensure_ascii=False)

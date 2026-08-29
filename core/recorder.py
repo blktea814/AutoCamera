@@ -21,8 +21,13 @@ class Recorder:
         filename = f"record_{timestamp}.mp4"
         self._current_file = os.path.join(self._save_dir, filename)
         fourcc = cv2.VideoWriter_fourcc(*"avc1")
-        if not cv2.VideoWriter(self._current_file, fourcc, self._fps,
-                               (self._resolution[0], self._resolution[1])).isOpened():
+        probe = cv2.VideoWriter(
+            self._current_file, fourcc, self._fps,
+            (self._resolution[0], self._resolution[1])
+        )
+        avc1_opened = probe.isOpened()
+        probe.release()
+        if not avc1_opened:
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         self._writer = cv2.VideoWriter(
             self._current_file, fourcc, self._fps,
