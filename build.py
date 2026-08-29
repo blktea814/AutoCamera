@@ -74,7 +74,10 @@ def build():
         icon_path = custom_ico if os.path.exists(custom_ico) else generate_windows_icon()
 
     import cv2
+    import mediapipe
     package_mode = "--onedir" if sys.platform == "darwin" else "--onefile"
+    mediapipe_dir = os.path.dirname(mediapipe.__file__)
+    face_detection_dir = os.path.join(mediapipe_dir, "modules", "face_detection")
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--name", "AutoCamera",
@@ -84,14 +87,24 @@ def build():
         "--add-data", f"config.json{os.pathsep}.",
         "--hidden-import", "mediapipe",
         "--hidden-import", "mediapipe.python._framework_bindings",
-        "--collect-submodules", "mediapipe",
-        "--collect-data", "mediapipe",
+        "--hidden-import", "mediapipe.python._framework_bindings.calculator_graph",
+        "--hidden-import", "mediapipe.python._framework_bindings.image_frame",
+        "--hidden-import", "mediapipe.python._framework_bindings.packet",
+        "--hidden-import", "mediapipe.python._framework_bindings.resource_util",
+        "--hidden-import", "mediapipe.python._framework_bindings.validated_graph_config",
+        "--hidden-import", "mediapipe.python.solutions.face_detection",
+        "--hidden-import", "mediapipe.python.solution_base",
+        "--hidden-import", "mediapipe.modules.face_detection.face_detection_pb2",
+        "--add-data", f"{os.path.join(face_detection_dir, 'face_detection_short_range.tflite')}{os.pathsep}mediapipe/modules/face_detection",
+        "--add-data", f"{os.path.join(face_detection_dir, 'face_detection_short_range_cpu.binarypb')}{os.pathsep}mediapipe/modules/face_detection",
     ]
 
     if icon_path:
         cmd.extend(["--icon", icon_path])
     if sys.platform == "darwin":
         cmd.extend(["--osx-bundle-identifier", "com.blktea814.autocamera"])
+        for ex in ("jax", "jaxlib", "sentencepiece"):
+            cmd.extend(["--exclude-module", ex])
 
     if sys.platform == "win32":
         cv2_dir = os.path.dirname(cv2.__file__)
